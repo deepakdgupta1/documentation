@@ -1,0 +1,17 @@
+---
+title: System Architecture Overview
+description: High-level system blueprint for the SOTA Docs-as-Code Engine.
+---
+
+import DiagramIsland from '../../../components/DiagramIsland.tsx';
+
+This diagram illustrates the flow of data within our Docs-as-Code pipeline, showcasing the integrations from source specs to generated static sites and agentic interfaces.
+
+<DiagramIsland client:load />
+
+## Components Description
+
+- **MDX/Markdown Content**: Hand-written documentation and architectural records.
+- **openapi.yaml Spec**: Single source of truth for the API routes.
+- **starlight-openapi**: Auto-generates the reference documentation pages.
+- **starlight-llms-txt**: Compiles plain text mappings for AI models at build time.

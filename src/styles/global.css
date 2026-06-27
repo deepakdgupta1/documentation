@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+/* SOTA Glassmorphism & Color Theme overrides */
+:root {
+  --primary-accent: #0f172a;
+  --glass-bg: rgba(255, 255, 255, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-blur: blur(12px);
+}
+
+[data-theme='dark'] {
+  --primary-accent: #f8fafc;
+  --glass-bg: rgba(15, 23, 42, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+.glassmorphic {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+}
+
+/* Fix React Flow canvas styling when embedded inside Starlight layouts */
+.react-flow-island {
+  border-radius: 0.75rem;
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}

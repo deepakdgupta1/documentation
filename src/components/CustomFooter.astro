@@ -1,0 +1,39 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro';
+import Giscus from '@giscus/react';
+import ChatAssistant from './ChatAssistant';
+import FormbricksSurvey from './FormbricksSurvey';
+
+// Extract the current page slug to feed to Giscus mapping term
+const { slug } = Astro.params;
+---
+
+{/* Render the default footer to keep Pagination, Edit Page, and Last Updated */}
+<Default {...Astro.props}>
+  <slot />
+</Default>
+
+{/* Embed Giscus Comments at the bottom of the content layout */}
+<div class="giscus-wrapper mt-10 border-t border-slate-800 pt-8">
+  <h3 class="text-base font-semibold text-slate-200 mb-4">Feedback & Discussion</h3>
+  <Giscus
+    client:only="react"
+    id="comments"
+    repo="giscus/giscus-component"
+    repoId="R_kgDOHuK0Wg"
+    category="Announcements"
+    categoryId="DIC_kwDOHuK0Ws4CS09L"
+    mapping="pathname"
+    term={slug || 'home'}
+    reactionsEnabled="1"
+    emitMetadata="0"
+    inputPosition="top"
+    theme="transparent_dark"
+    lang="en"
+    loading="lazy"
+  />
+</div>
+
+{/* Telemetry trigger and Chat Assistant floating UI */}
+<FormbricksSurvey client:only="react" />
+<ChatAssistant client:only="react" />

@@ -1,0 +1,68 @@
+openapi: 3.0.3
+info:
+  title: Docs-as-Code Engine API
+  description: Dynamic AI chat orchestration and docs ingestion telemetry API.
+  version: 1.0.0
+servers:
+  - url: /api
+paths:
+  /chat:
+    post:
+      summary: Send a chat query to the GLM-5.2 Orchestrator
+      description: Submits user query with context and streams back token-by-token responses.
+      operationId: chatOrchestration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  description: The query from the user.
+                  example: "How do I configure the React Flow diagram island?"
+                threadId:
+                  type: string
+                  description: Optional thread identifier for conversation state tracking.
+      responses:
+        '200':
+          description: Streaming chat response
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: AI Orchestrator internal error
+
+  /telemetry/event:
+    post:
+      summary: Record user telemetry event
+      description: Used to track custom interactions (e.g., dwelling on diagrams or reading specific sections).
+      operationId: recordTelemetry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - eventType
+                - pagePath
+              properties:
+                eventType:
+                  type: string
+                  enum: [dwell_time, diagram_click, feedback_submit]
+                pagePath:
+                  type: string
+                  example: "/architecture/diagrams"
+                durationSeconds:
+                  type: integer
+                  example: 125
+      responses:
+        '200':
+          description: Telemetry successfully logged
