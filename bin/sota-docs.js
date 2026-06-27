@@ -75,6 +75,36 @@ function createContentSymlink(targetDocsDir) {
   const contentDocsPath = path.join(ENGINE_ROOT, 'src', 'content', 'docs');
   const backupPath = path.join(ENGINE_ROOT, 'src', 'content', '.docs-backup');
 
+  // Auto-recover from a previous crashed run
+  if (fs.existsSync(backupPath)) {
+    let recovered = false;
+    try {
+      if (fs.lstatSync(contentDocsPath).isSymbolicLink()) {
+        fs.unlinkSync(contentDocsPath);
+        recovered = true;
+      }
+    } catch (e) {
+      // Ignored: doesn't exist
+    }
+    
+    // Using try/catch to safely check if contentDocsPath exists as a real directory/file
+    let contentExists = true;
+    try {
+      fs.lstatSync(contentDocsPath);
+    } catch (e) {
+      contentExists = false;
+    }
+
+    if (!contentExists) {
+      fs.renameSync(backupPath, contentDocsPath);
+      recovered = true;
+    }
+    
+    if (recovered) {
+      console.log('  🔄 Recovered original docs from previous crashed run.\n');
+    }
+  }
+
   // Check if the target is the engine itself (self-referential case)
   const resolvedTarget = path.resolve(targetDocsDir);
   const resolvedContentDocs = path.resolve(contentDocsPath);
@@ -84,7 +114,7 @@ function createContentSymlink(targetDocsDir) {
   }
 
   // Back up existing content/docs
-  if (fs.existsSync(contentDocsPath)) {
+  try {
     if (fs.lstatSync(contentDocsPath).isSymbolicLink()) {
       // Previous run left a dangling symlink — just remove it
       fs.unlinkSync(contentDocsPath);
@@ -95,6 +125,8 @@ function createContentSymlink(targetDocsDir) {
       }
       fs.renameSync(contentDocsPath, backupPath);
     }
+  } catch (e) {
+    // Does not exist, nothing to back up
   }
 
   // Create symlink

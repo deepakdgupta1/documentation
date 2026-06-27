@@ -71,20 +71,29 @@ export function validateGitState(targetDir: string): void {
     );
   }
 
-  // 3. Check that a previous prep branch doesn't already exist as a worktree
+  // 3. Check that a previous prep branch doesn't already exist as a worktree, and clean it up if it does
+  const worktreePath = path.join(resolved, '.git-docs-prep');
   try {
     const worktrees = git('worktree list --porcelain', resolved);
-    if (worktrees.includes('.git-docs-prep')) {
-      throw new Error(
-        'A previous worktree ".git-docs-prep" still exists. Clean it up with:\n' +
-          '  git worktree remove .git-docs-prep --force'
-      );
+    if (worktrees.includes('.git-docs-prep') || fs.existsSync(worktreePath)) {
+      console.log('  🧹 Found stale .git-docs-prep worktree. Auto-cleaning...');
+      git('worktree remove .git-docs-prep --force', resolved);
     }
   } catch (e: unknown) {
-    if (e instanceof Error && e.message.includes('.git-docs-prep')) {
-      throw e;
+    // Last resort manual cleanup if `git worktree remove` failed or `git worktree list` failed
+    if (fs.existsSync(worktreePath)) {
+      try {
+        fs.rmSync(worktreePath, { recursive: true, force: true });
+        git('worktree prune', resolved);
+        console.log('  🧹 Stale worktree force-cleaned.');
+      } catch (err: any) {
+        throw new Error(
+          'Failed to auto-clean stale ".git-docs-prep" worktree. Please clean it manually:\n' +
+          '  git worktree remove .git-docs-prep --force\n' +
+          `Details: ${err.message}`
+        );
+      }
     }
-    // `git worktree list` might fail on very old Git versions — allow to proceed
   }
 }
 
