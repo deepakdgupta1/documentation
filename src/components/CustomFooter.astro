@@ -6,6 +6,11 @@ import FormbricksSurvey from './FormbricksSurvey';
 
 // Extract the current page slug to feed to Giscus mapping term
 const { slug } = Astro.params;
+const giscusRepo = import.meta.env.PUBLIC_GISCUS_REPO;
+const giscusRepoId = import.meta.env.PUBLIC_GISCUS_REPO_ID;
+const giscusCategory = import.meta.env.PUBLIC_GISCUS_CATEGORY || 'Announcements';
+const giscusCategoryId = import.meta.env.PUBLIC_GISCUS_CATEGORY_ID;
+const giscusEnabled = Boolean(giscusRepo && giscusRepoId && giscusCategoryId);
 ---
 
 {/* Render the default footer to keep Pagination, Edit Page, and Last Updated */}
@@ -13,26 +18,27 @@ const { slug } = Astro.params;
   <slot />
 </Default>
 
-{/* Embed Giscus Comments at the bottom of the content layout */}
-<div class="giscus-wrapper mt-10 border-t border-slate-800 pt-8">
-  <h3 class="text-base font-semibold text-slate-200 mb-4">Feedback & Discussion</h3>
-  <Giscus
-    client:only="react"
-    id="comments"
-    repo="giscus/giscus-component"
-    repoId="R_kgDOHuK0Wg"
-    category="Announcements"
-    categoryId="DIC_kwDOHuK0Ws4CS09L"
-    mapping="pathname"
-    term={slug || 'home'}
-    reactionsEnabled="1"
-    emitMetadata="0"
-    inputPosition="top"
-    theme="transparent_dark"
-    lang="en"
-    loading="lazy"
-  />
-</div>
+{giscusEnabled && (
+  <div class="giscus-wrapper mt-10 border-t border-slate-800 pt-8">
+    <h3 class="text-base font-semibold text-slate-200 mb-4">Feedback & Discussion</h3>
+    <Giscus
+      client:only="react"
+      id="comments"
+      repo={giscusRepo}
+      repoId={giscusRepoId}
+      category={giscusCategory}
+      categoryId={giscusCategoryId}
+      mapping="pathname"
+      term={slug || 'home'}
+      reactionsEnabled="1"
+      emitMetadata="0"
+      inputPosition="top"
+      theme="transparent_dark"
+      lang="en"
+      loading="lazy"
+    />
+  </div>
+)}
 
 {/* Telemetry trigger and Chat Assistant floating UI */}
 <FormbricksSurvey client:only="react" />

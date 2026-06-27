@@ -9,6 +9,7 @@
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
+    "test": "node --import tsx --test tests/*.test.ts",
     "preview": "astro preview",
     "astro": "astro"
   },
@@ -36,9 +37,13 @@
     "starlight-llms-txt": "^0.10.0",
     "starlight-openapi": "^0.25.3",
     "tailwindcss": "^4.3.1",
+    "tsx": "^4.22.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/dagre": "^0.7.54"
+  },
+  "overrides": {
+    "form-data": "4.0.6"
   }
 }

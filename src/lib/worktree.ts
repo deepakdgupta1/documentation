@@ -6,7 +6,7 @@
  * and interrupt handling.
  */
 
-import { execSync, type ExecSyncOptions } from 'node:child_process';
+import { execFileSync, type ExecSyncOptions } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -31,13 +31,17 @@ const execOpts = (cwd: string): ExecSyncOptions => ({
   stdio: ['pipe', 'pipe', 'pipe'],
 });
 
-function git(args: string, cwd: string): string {
-  return (execSync(`git ${args}`, execOpts(cwd)) as string).trim();
+/**
+ * Run a git command safely using execFileSync (array args, no shell interpretation).
+ * This prevents command injection via filenames or branch names.
+ */
+function git(args: string[], cwd: string): string {
+  return (execFileSync('git', args, execOpts(cwd)) as string).trim();
 }
 
 function isGitRepo(dir: string): boolean {
   try {
-    git('rev-parse --is-inside-work-tree', dir);
+    git(['rev-parse', '--is-inside-work-tree'], dir);
     return true;
   } catch {
     return false;
@@ -63,7 +67,7 @@ export function validateGitState(targetDir: string): void {
   }
 
   // 2. Working tree must be clean (no uncommitted changes)
-  const status = git('status --porcelain', resolved);
+  const status = git(['status', '--porcelain'], resolved);
   if (status.length > 0) {
     throw new Error(
       'Working tree has uncommitted changes. Please commit or stash your changes before running the worktree transformation.\n\n' +
@@ -74,23 +78,24 @@ export function validateGitState(targetDir: string): void {
   // 3. Check that a previous prep branch doesn't already exist as a worktree, and clean it up if it does
   const worktreePath = path.join(resolved, '.git-docs-prep');
   try {
-    const worktrees = git('worktree list --porcelain', resolved);
+    const worktrees = git(['worktree', 'list', '--porcelain'], resolved);
     if (worktrees.includes('.git-docs-prep') || fs.existsSync(worktreePath)) {
       console.log('  🧹 Found stale .git-docs-prep worktree. Auto-cleaning...');
-      git('worktree remove .git-docs-prep --force', resolved);
+      git(['worktree', 'remove', '.git-docs-prep', '--force'], resolved);
     }
   } catch (e: unknown) {
     // Last resort manual cleanup if `git worktree remove` failed or `git worktree list` failed
     if (fs.existsSync(worktreePath)) {
       try {
         fs.rmSync(worktreePath, { recursive: true, force: true });
-        git('worktree prune', resolved);
+        git(['worktree', 'prune'], resolved);
         console.log('  🧹 Stale worktree force-cleaned.');
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
         throw new Error(
           'Failed to auto-clean stale ".git-docs-prep" worktree. Please clean it manually:\n' +
           '  git worktree remove .git-docs-prep --force\n' +
-          `Details: ${err.message}`
+          `Details: ${msg}`
         );
       }
     }
@@ -111,7 +116,7 @@ export function spawnWorktree(targetDir: string): WorktreeContext {
   const worktreePath = path.join(resolved, '.git-docs-prep');
 
   // Create the worktree on a new branch from HEAD
-  git(`worktree add -b "${branchName}" "${worktreePath}"`, resolved);
+  git(['worktree', 'add', '-b', branchName, worktreePath], resolved);
 
   console.log(`  ✅ Worktree created at .git-docs-prep on branch ${branchName}`);
 
@@ -138,7 +143,8 @@ export function applyTransformations(ctx: WorktreeContext): void {
     if (/\s/.test(basename)) {
       const newBasename = basename.replace(/\s+/g, '-');
       const newPath = path.join(dir, newBasename);
-      git(`mv "${filePath}" "${newPath}"`, worktreePath);
+      // Use '--' to prevent filenames from being interpreted as flags
+      git(['mv', '--', filePath, newPath], worktreePath);
       renamed++;
       // Continue processing with the new path
       injectFrontmatterIfMissing(newPath);
@@ -156,19 +162,19 @@ export function applyTransformations(ctx: WorktreeContext): void {
  * Commit all changes in the worktree and clean up.
  */
 export function commitAndCleanup(ctx: WorktreeContext): void {
-  const { targetDir, worktreePath, branchName } = ctx;
+  const { worktreePath, branchName } = ctx;
 
   try {
     // Stage all changes
-    git('add -A', worktreePath);
+    git(['add', '-A'], worktreePath);
 
     // Check if there's anything to commit
-    const status = git('status --porcelain', worktreePath);
+    const status = git(['status', '--porcelain'], worktreePath);
     if (status.length === 0) {
       console.log('  ℹ️  No changes to commit.');
     } else {
       git(
-        `commit -m "docs(prep): apply SOTA format transformations\n\nApplied by sota-docs prep CLI.\nBranch: ${branchName}"`,
+        ['commit', '-m', `docs(prep): apply SOTA format transformations\n\nApplied by sota-docs prep CLI.\nBranch: ${branchName}`],
         worktreePath
       );
       console.log(`  ✅ Changes committed on branch ${branchName}.`);
@@ -187,14 +193,14 @@ export function cleanupWorktree(ctx: WorktreeContext): void {
 
   try {
     if (fs.existsSync(worktreePath)) {
-      git(`worktree remove "${worktreePath}" --force`, targetDir);
+      git(['worktree', 'remove', worktreePath, '--force'], targetDir);
       console.log('  🧹 Worktree cleaned up.');
     }
   } catch {
     // Last resort: manual cleanup
     try {
       fs.rmSync(worktreePath, { recursive: true, force: true });
-      git('worktree prune', targetDir);
+      git(['worktree', 'prune'], targetDir);
       console.log('  🧹 Worktree force-cleaned.');
     } catch {
       console.error(`  ⚠️  Could not clean up worktree at ${worktreePath}. Manual cleanup required.`);

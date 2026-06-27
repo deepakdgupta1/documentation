@@ -19,3 +19,7 @@ pnpm-debug.log*
 
 # macOS-specific files
 .DS_Store
+
+# debug scripts
+debug_*.cjs
+debug_*.mjs

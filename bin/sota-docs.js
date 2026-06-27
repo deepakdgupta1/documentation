@@ -19,11 +19,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import readline from 'node:readline';
+import { tsImport } from 'tsx/esm/api';
 
 // Resolve the engine's root directory (where this package lives)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ENGINE_ROOT = path.resolve(__dirname, '..');
+
+const importTypeScript = (specifier) => tsImport(specifier, import.meta.url);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -172,7 +175,7 @@ program
     // Dynamic import of TypeScript modules (compiled by the engine's toolchain)
     // For now, we inline the audit logic since the CLI is plain JS
     // In a published package, these would be pre-compiled
-    const { auditFormat, auditSOTA, printReport } = await import('../src/lib/audit.ts');
+    const { auditFormat, auditSOTA, printReport } = await importTypeScript('../src/lib/audit.ts');
 
     const formatResults = auditFormat(targetDir);
     const sotaReport = auditSOTA(targetDir);
@@ -189,7 +192,7 @@ program
 
       if (String(answer).toLowerCase() === 'y') {
         const { validateGitState, spawnWorktree, applyTransformations, commitAndCleanup, registerCleanupHandlers } =
-          await import('../src/lib/worktree.ts');
+          await importTypeScript('../src/lib/worktree.ts');
 
         try {
           validateGitState(targetDir);
@@ -277,7 +280,7 @@ program
     console.log(`  📄 Docs dir:    ${docsDir}`);
 
     console.log(`\n  🔍 Auditing documents format and SOTA readiness...`);
-    const { auditFormat, auditSOTA, printReport } = await import('../src/lib/audit.ts');
+    const { auditFormat, auditSOTA, printReport } = await importTypeScript('../src/lib/audit.ts');
     
     const formatResults = auditFormat(targetDir);
     const sotaReport = auditSOTA(targetDir);

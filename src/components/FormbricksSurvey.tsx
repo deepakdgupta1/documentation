@@ -39,18 +39,20 @@ export default function FormbricksSurvey() {
     setShowSurvey(false);
   };
 
-  const handleSubmit = (data: any) => {
-    console.log('Survey submitted to Formbricks:', data);
+  // TODO: Integrate with a real backend (Formbricks API or /api/feedback route).
+  // Currently this only logs to console — submitted data is not persisted.
+  const handleSubmit = (data: Record<string, unknown>) => {
+    console.log('[Demo Mode] Survey submitted (not sent to backend):', data);
     localStorage.setItem(STORAGE_KEY, 'true');
     setShowSurvey(false);
   };
 
   return (
-    <div className="fixed bottom-24 left-6 z-50 w-[350px] bg-slate-950/95 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-2xl animate-in slide-in-from-bottom-5">
+    <div className="fixed bottom-24 right-6 z-50 w-[350px] bg-slate-950/95 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-2xl animate-in slide-in-from-bottom-5">
       <div className="flex justify-between items-start mb-3">
         <h4 className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
           <Sparkles className="size-3.5 text-amber-400" />
-          Quick Architecture Feedback
+          Quick Architecture Feedback <span className="text-[9px] text-slate-500 ml-1">[Demo]</span>
         </h4>
         <button
           onClick={handleDismiss}

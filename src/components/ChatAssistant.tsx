@@ -30,7 +30,10 @@ function CustomThread() {
           </div>
         </div>
         <AssistantModalPrimitive.Trigger asChild>
-          <button className="text-slate-400 hover:text-slate-200 transition-colors p-1 rounded-lg hover:bg-slate-800/50 cursor-pointer">
+          <button
+            className="text-slate-400 hover:text-slate-200 transition-colors p-1 rounded-lg hover:bg-slate-800/50 cursor-pointer"
+            aria-label="Close Assistant"
+          >
             <X className="size-4" />
           </button>
         </AssistantModalPrimitive.Trigger>
@@ -114,17 +117,18 @@ function CustomThread() {
 }
 
 export default function ChatAssistant() {
+  const [open, setOpen] = React.useState(false);
   const runtime = useChatRuntime({
     api: '/api/chat',
   });
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <AssistantModalPrimitive.Root>
+      <AssistantModalPrimitive.Root open={open} onOpenChange={setOpen}>
         <AssistantModalPrimitive.Anchor className="fixed right-6 bottom-6 z-50">
           <AssistantModalPrimitive.Trigger asChild>
             <button
-              className="flex items-center justify-center size-12 rounded-full bg-linear-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-indigo-500/35 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer border border-blue-400/20"
+              className="flex items-center justify-center size-12 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-indigo-500/35 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer border border-blue-400/20"
               aria-label="Ask AI Assistant"
             >
               <MessageSquare className="size-5" />
@@ -134,7 +138,7 @@ export default function ChatAssistant() {
 
         <AssistantModalPrimitive.Content
           sideOffset={12}
-          className="fixed right-6 bottom-20 z-50 w-[380px] h-[520px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] animate-in slide-in-from-bottom-2 fade-in duration-200"
+          className="fixed right-6 bottom-20 z-[60] w-[380px] h-[520px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] animate-in slide-in-from-bottom-2 fade-in duration-200"
         >
           <CustomThread />
         </AssistantModalPrimitive.Content>

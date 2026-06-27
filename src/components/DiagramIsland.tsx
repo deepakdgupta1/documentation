@@ -1,10 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { ReactFlow, Background, Controls, MiniMap, applyNodeChanges, applyEdgeChanges, type Node, type Edge } from '@xyflow/react';
+import React, { useMemo, useState } from 'react';
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  applyNodeChanges,
+  applyEdgeChanges,
+  MarkerType,
+  type Node,
+  type Edge,
+  type NodeChange,
+  type EdgeChange,
+} from '@xyflow/react';
 import dagre from 'dagre';
 
 // Scoped CSS import is handled safely by Vite on the server
 import '@xyflow/react/dist/style.css';
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const NODE_WIDTH = 260;
+const NODE_HEIGHT = 60;
+
+// ---------------------------------------------------------------------------
+// Node & Edge Definitions
+// ---------------------------------------------------------------------------
+
+// Initial positions are set to { x: 0, y: 0 } intentionally —
+// dagre recalculates all positions in getLayoutedElements() below.
 const initialNodes: Node[] = [
   {
     id: 'docs',
@@ -36,13 +61,14 @@ const initialNodes: Node[] = [
   },
   {
     id: 'engine',
+    type: 'default',
     data: { label: '🚀 Astro Starlight Core' },
     position: { x: 0, y: 0 },
     style: {
       background: 'rgba(234, 179, 8, 0.1)',
       color: '#eab308',
       border: '1px solid rgba(234, 179, 8, 0.3)',
-      borderRadius: '8px',
+      borderRadius: '12px',
       padding: '12px',
       fontWeight: 'bold',
       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
@@ -50,6 +76,7 @@ const initialNodes: Node[] = [
   },
   {
     id: 'plugin-openapi',
+    type: 'default',
     data: { label: '🔌 starlight-openapi' },
     position: { x: 0, y: 0 },
     style: {
@@ -62,6 +89,7 @@ const initialNodes: Node[] = [
   },
   {
     id: 'plugin-llms',
+    type: 'default',
     data: { label: '🔌 starlight-llms-txt' },
     position: { x: 0, y: 0 },
     style: {
@@ -74,12 +102,13 @@ const initialNodes: Node[] = [
   },
   {
     id: 'chat-api',
+    type: 'default',
     data: { label: '🤖 GLM-5.2 API Route (/api/chat)' },
     position: { x: 0, y: 0 },
     style: {
       background: 'rgba(14, 165, 233, 0.1)',
       color: '#0ea5e9',
-      border: '1px solid rgba(0, 165, 233, 0.3)',
+      border: '1px solid rgba(14, 165, 233, 0.3)',
       borderRadius: '8px',
       padding: '10px',
       fontWeight: 'bold',
@@ -106,6 +135,7 @@ const initialNodes: Node[] = [
     position: { x: 0, y: 0 },
     style: {
       background: 'rgba(248, 250, 252, 0.05)',
+      color: '#cbd5e1',
       border: '1px solid rgba(248, 250, 252, 0.2)',
       borderRadius: '8px',
       padding: '12px',
@@ -114,25 +144,35 @@ const initialNodes: Node[] = [
   },
 ];
 
+const defaultMarker = {
+  type: MarkerType.ArrowClosed,
+  width: 16,
+  height: 16,
+  color: '#3b82f6',
+};
+
 const initialEdges: Edge[] = [
-  { id: 'e1', source: 'docs', target: 'engine', animated: true },
-  { id: 'e2', source: 'openapi', target: 'engine', animated: true },
-  { id: 'e3', source: 'engine', target: 'plugin-openapi' },
-  { id: 'e4', source: 'engine', target: 'plugin-llms' },
-  { id: 'e5', source: 'plugin-openapi', target: 'dist' },
-  { id: 'e6', source: 'plugin-llms', target: 'dist' },
-  { id: 'e7', source: 'docs', target: 'chat-api', label: 'Context Injection', style: { strokeDasharray: '5,5' } },
-  { id: 'e8', source: 'chat-api', target: 'assistant-ui', animated: true, label: 'SSE Stream' },
+  { id: 'e1', source: 'docs', target: 'engine', type: 'smoothstep', animated: true, markerEnd: defaultMarker, style: { stroke: '#3b82f6', strokeWidth: 2 } },
+  { id: 'e2', source: 'openapi', target: 'engine', type: 'smoothstep', animated: true, markerEnd: defaultMarker, style: { stroke: '#3b82f6', strokeWidth: 2 } },
+  { id: 'e3', source: 'engine', target: 'plugin-openapi', type: 'smoothstep', markerEnd: defaultMarker, style: { stroke: '#3b82f6', strokeWidth: 2 } },
+  { id: 'e4', source: 'engine', target: 'plugin-llms', type: 'smoothstep', markerEnd: defaultMarker, style: { stroke: '#3b82f6', strokeWidth: 2 } },
+  { id: 'e5', source: 'plugin-openapi', target: 'dist', type: 'smoothstep', markerEnd: defaultMarker, style: { stroke: '#3b82f6', strokeWidth: 2 } },
+  { id: 'e6', source: 'plugin-llms', target: 'dist', type: 'smoothstep', markerEnd: defaultMarker, style: { stroke: '#3b82f6', strokeWidth: 2 } },
+  { id: 'e7', source: 'docs', target: 'chat-api', type: 'smoothstep', label: 'Context Injection', style: { stroke: '#3b82f6', strokeWidth: 2, strokeDasharray: '5,5' }, markerEnd: defaultMarker },
+  { id: 'e8', source: 'chat-api', target: 'assistant-ui', type: 'smoothstep', animated: true, label: 'SSE Stream', markerEnd: defaultMarker, style: { stroke: '#3b82f6', strokeWidth: 2 } },
 ];
 
-const dagreGraph = new dagre.graphlib.Graph();
-dagreGraph.setDefaultEdgeLabel(() => ({}));
+// ---------------------------------------------------------------------------
+// Dagre Layout
+// ---------------------------------------------------------------------------
 
 const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
   dagreGraph.setGraph({ rankdir: direction });
 
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: 250, height: 50 });
+    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   });
 
   edges.forEach((edge) => {
@@ -145,9 +185,11 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
     const nodeWithPosition = dagreGraph.node(node.id);
     return {
       ...node,
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
       position: {
-        x: nodeWithPosition.x - 250 / 2,
-        y: nodeWithPosition.y - 50 / 2,
+        x: nodeWithPosition.x - NODE_WIDTH / 2,
+        y: nodeWithPosition.y - NODE_HEIGHT / 2,
       },
     };
   });
@@ -155,39 +197,45 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
   return { nodes: newNodes, edges };
 };
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export default function DiagramIsland() {
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
+  // Compute layout inside the component to avoid SSR shared-state issues.
+  // useMemo ensures the dagre computation runs only once per mount.
+  const initialLayout = useMemo(
+    () => getLayoutedElements(initialNodes, initialEdges),
+    []
+  );
 
-  useEffect(() => {
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-      initialNodes,
-      initialEdges
-    );
-    setNodes(layoutedNodes);
-    setEdges(layoutedEdges);
-  }, []);
+  const [nodes, setNodes] = useState<Node[]>(initialLayout.nodes);
+  const [edges, setEdges] = useState<Edge[]>(initialLayout.edges);
 
-  const onNodesChange = (changes: any) => {
+  const onNodesChange = (changes: NodeChange[]) => {
     setNodes((nds) => applyNodeChanges(changes, nds));
   };
 
-  const onEdgesChange = (changes: any) => {
+  const onEdgesChange = (changes: EdgeChange[]) => {
     setEdges((eds) => applyEdgeChanges(changes, eds));
   };
 
   return (
-    <div style={{ width: '100%', height: '400px' }} className="react-flow-island">
+    <div style={{ width: '100%', height: '450px' }} className="react-flow-island">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         fitView
+        defaultEdgeOptions={{
+          type: 'smoothstep',
+          style: { strokeWidth: 2, stroke: '#3b82f6' },
+        }}
       >
-        <Background color="#cbd5e1" gap={16} size={1} />
+        <Background color="#334155" gap={16} size={1} />
         <Controls />
-        <MiniMap />
+        <MiniMap nodeColor={() => '#3b82f6'} maskColor="rgba(15, 23, 42, 0.7)" />
       </ReactFlow>
     </div>
   );

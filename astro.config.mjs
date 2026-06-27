@@ -38,7 +38,7 @@ export default defineConfig({
         Footer: './src/components/CustomFooter.astro',
       },
       social: [
-        { icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }
+        { icon: 'github', label: 'GitHub', href: process.env.PUBLIC_GITHUB_REPO_URL || 'https://github.com/deepakdgupta1/documentation' },
       ],
       sidebar: [
         {
