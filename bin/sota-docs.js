@@ -269,12 +269,23 @@ program
   .description('Run a production build of the documentation engine pointing at the target repository.')
   .option('-d, --dir <path>', 'Target repository root directory', process.cwd())
   .option('--docs-subdir <path>', 'Subdirectory containing documentation (auto-detected if not set)')
-  .action((options) => {
+  .action(async (options) => {
     const targetDir = path.resolve(options.dir);
     const docsDir = resolveDocsDir(targetDir, options.docsSubdir);
 
     console.log(`\n  📂 Target repo: ${targetDir}`);
     console.log(`  📄 Docs dir:    ${docsDir}`);
+
+    console.log(`\n  🔍 Auditing documents format and SOTA readiness...`);
+    const { auditFormat, auditSOTA, printReport } = await import('../src/lib/audit.ts');
+    
+    const formatResults = auditFormat(targetDir);
+    const sotaReport = auditSOTA(targetDir);
+    
+    console.log(`\n  📋 Format Readiness: ${formatResults.length === 0 ? '✅ Ready' : `⚠️ ${formatResults.length} issue(s) found`}`);
+    console.log(`  📋 SOTA Audit: Evaluated current set of documents`);
+    
+    printReport(formatResults, sotaReport);
 
     const cleanup = createContentSymlink(docsDir);
 
