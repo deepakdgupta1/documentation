@@ -6,11 +6,13 @@ import {
   ComposerPrimitive,
   AssistantModalPrimitive,
   AuiIf,
+  useThreadRuntime,
 } from '@assistant-ui/react';
 import { useChatRuntime } from '@assistant-ui/react-ai-sdk';
 import { MessageSquare, X, Send, Bot, Sparkles } from 'lucide-react';
 
 function CustomThread() {
+  const threadRuntime = useThreadRuntime();
   return (
     <ThreadPrimitive.Root className="flex h-full flex-col bg-slate-950/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl overflow-hidden shadow-2xl">
       {/* Thread Header */}
@@ -51,7 +53,10 @@ function CustomThread() {
             <div className="flex flex-col w-full gap-2 pt-2">
               <button
                 onClick={() => {
-                  /* trigger pre-filled message if needed */
+                  threadRuntime.append({
+                    role: 'user',
+                    content: [{ type: 'text', text: 'Explain the System Architecture' }]
+                  });
                 }}
                 className="text-xs bg-slate-900 border border-slate-800 hover:bg-slate-800/80 text-slate-300 py-2 px-3 rounded-lg transition-all text-left cursor-pointer"
               >

@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { ReactFlow, Background, Controls, MiniMap, applyNodeChanges, applyEdgeChanges, type Node, type Edge } from '@xyflow/react';
+import dagre from 'dagre';
 
 // Scoped CSS import is handled safely by Vite on the server
 import '@xyflow/react/dist/style.css';
 
-const initialNodes = [
+const initialNodes: Node[] = [
   {
     id: 'docs',
     type: 'input',
     data: { label: '📄 MDX/Markdown Content' },
-    position: { x: 50, y: 50 },
+    position: { x: 0, y: 0 },
     style: {
       background: 'rgba(59, 130, 246, 0.1)',
       color: '#3b82f6',
@@ -22,7 +24,7 @@ const initialNodes = [
     id: 'openapi',
     type: 'input',
     data: { label: '⚙️ openapi.yaml Spec' },
-    position: { x: 250, y: 50 },
+    position: { x: 0, y: 0 },
     style: {
       background: 'rgba(168, 85, 247, 0.1)',
       color: '#a855f7',
@@ -35,7 +37,7 @@ const initialNodes = [
   {
     id: 'engine',
     data: { label: '🚀 Astro Starlight Core' },
-    position: { x: 150, y: 150 },
+    position: { x: 0, y: 0 },
     style: {
       background: 'rgba(234, 179, 8, 0.1)',
       color: '#eab308',
@@ -49,7 +51,7 @@ const initialNodes = [
   {
     id: 'plugin-openapi',
     data: { label: '🔌 starlight-openapi' },
-    position: { x: 50, y: 250 },
+    position: { x: 0, y: 0 },
     style: {
       background: 'rgba(244, 63, 94, 0.1)',
       color: '#f43f5e',
@@ -61,7 +63,7 @@ const initialNodes = [
   {
     id: 'plugin-llms',
     data: { label: '🔌 starlight-llms-txt' },
-    position: { x: 250, y: 250 },
+    position: { x: 0, y: 0 },
     style: {
       background: 'rgba(16, 185, 129, 0.1)',
       color: '#10b981',
@@ -73,7 +75,7 @@ const initialNodes = [
   {
     id: 'chat-api',
     data: { label: '🤖 GLM-5.2 API Route (/api/chat)' },
-    position: { x: 450, y: 150 },
+    position: { x: 0, y: 0 },
     style: {
       background: 'rgba(14, 165, 233, 0.1)',
       color: '#0ea5e9',
@@ -87,7 +89,7 @@ const initialNodes = [
     id: 'assistant-ui',
     type: 'output',
     data: { label: '💬 Chat Interface (assistant-ui)' },
-    position: { x: 450, y: 270 },
+    position: { x: 0, y: 0 },
     style: {
       background: 'rgba(99, 102, 241, 0.1)',
       color: '#6366f1',
@@ -101,7 +103,7 @@ const initialNodes = [
     id: 'dist',
     type: 'output',
     data: { label: '🌐 Published Site / Static Output' },
-    position: { x: 150, y: 350 },
+    position: { x: 0, y: 0 },
     style: {
       background: 'rgba(248, 250, 252, 0.05)',
       border: '1px solid rgba(248, 250, 252, 0.2)',
@@ -112,7 +114,7 @@ const initialNodes = [
   },
 ];
 
-const initialEdges = [
+const initialEdges: Edge[] = [
   { id: 'e1', source: 'docs', target: 'engine', animated: true },
   { id: 'e2', source: 'openapi', target: 'engine', animated: true },
   { id: 'e3', source: 'engine', target: 'plugin-openapi' },
@@ -123,47 +125,55 @@ const initialEdges = [
   { id: 'e8', source: 'chat-api', target: 'assistant-ui', animated: true, label: 'SSE Stream' },
 ];
 
+const dagreGraph = new dagre.graphlib.Graph();
+dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => {
+  dagreGraph.setGraph({ rankdir: direction });
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: 250, height: 50 });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  const newNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    return {
+      ...node,
+      position: {
+        x: nodeWithPosition.x - 250 / 2,
+        y: nodeWithPosition.y - 50 / 2,
+      },
+    };
+  });
+
+  return { nodes: newNodes, edges };
+};
+
 export default function DiagramIsland() {
-  const [Flow, setFlow] = useState<any>(null);
-  const [nodes, setNodes] = useState(initialNodes);
-  const [edges, setEdges] = useState(initialEdges);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
 
   useEffect(() => {
-    // Dynamic import forces client-only resolution
-    import('@xyflow/react').then((mod) => {
-      setFlow(mod);
-    });
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+      initialNodes,
+      initialEdges
+    );
+    setNodes(layoutedNodes);
+    setEdges(layoutedEdges);
   }, []);
 
-  if (!Flow) {
-    return (
-      <div 
-        style={{ width: '100%', height: '400px' }} 
-        className="react-flow-island bg-slate-900/50 flex items-center justify-center text-slate-400 text-sm border border-slate-800 rounded-xl"
-      >
-        Loading architecture diagram...
-      </div>
-    );
-  }
-
-  const { ReactFlow, Background, Controls, MiniMap } = Flow;
-
   const onNodesChange = (changes: any) => {
-    setNodes((nds) => {
-      if (Flow.applyNodeChanges) {
-        return Flow.applyNodeChanges(changes, nds);
-      }
-      return nds;
-    });
+    setNodes((nds) => applyNodeChanges(changes, nds));
   };
 
   const onEdgesChange = (changes: any) => {
-    setEdges((eds) => {
-      if (Flow.applyEdgeChanges) {
-        return Flow.applyEdgeChanges(changes, eds);
-      }
-      return eds;
-    });
+    setEdges((eds) => applyEdgeChanges(changes, eds));
   };
 
   return (

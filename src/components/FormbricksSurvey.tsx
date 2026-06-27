@@ -2,27 +2,46 @@ import React, { useState, useEffect } from 'react';
 import { Form, Nps, Textarea, Submit } from '@formbricks/react';
 import { Sparkles, X } from 'lucide-react';
 
+const STORAGE_KEY = 'arch_survey_completed';
+
 export default function FormbricksSurvey() {
   const [showSurvey, setShowSurvey] = useState(false);
 
   useEffect(() => {
-    // Set a timer for 120 seconds (2 minutes) to trigger the survey
-    // For local testing/demo we can keep it 120 seconds as requested
-    const triggerTime = 120 * 1000;
-    const timer = setTimeout(() => {
-      // Trigger only if user is dwelling on an architecture page
-      if (window.location.pathname.includes('/architecture')) {
-        setShowSurvey(true);
-      }
-    }, triggerTime);
+    if (localStorage.getItem(STORAGE_KEY)) return;
 
-    return () => clearTimeout(timer);
+    let timer: ReturnType<typeof setTimeout>;
+
+    const setupTimer = () => {
+      clearTimeout(timer);
+      if (window.location.pathname.includes('/architecture')) {
+        timer = setTimeout(() => {
+          if (!localStorage.getItem(STORAGE_KEY)) {
+            setShowSurvey(true);
+          }
+        }, 120 * 1000);
+      }
+    };
+
+    setupTimer();
+    document.addEventListener('astro:page-load', setupTimer);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('astro:page-load', setupTimer);
+    };
   }, []);
 
   if (!showSurvey) return null;
 
+  const handleDismiss = () => {
+    localStorage.setItem(STORAGE_KEY, 'true');
+    setShowSurvey(false);
+  };
+
   const handleSubmit = (data: any) => {
     console.log('Survey submitted to Formbricks:', data);
+    localStorage.setItem(STORAGE_KEY, 'true');
     setShowSurvey(false);
   };
 
@@ -34,7 +53,7 @@ export default function FormbricksSurvey() {
           Quick Architecture Feedback
         </h4>
         <button
-          onClick={() => setShowSurvey(false)}
+          onClick={handleDismiss}
           className="text-slate-500 hover:text-slate-300 p-1 hover:bg-slate-900 rounded-lg cursor-pointer"
         >
           <X className="size-3.5" />
@@ -62,7 +81,7 @@ export default function FormbricksSurvey() {
               label="Any suggestions for improvements?"
               placeholder="What details are missing?"
               labelClassName="text-slate-400 text-[10px] mb-1 block"
-              inputClassName="w-full bg-slate-900 border border-slate-805 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 min-h-[50px] max-h-[100px] resize-none"
+              inputClassName="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 min-h-[50px] max-h-[100px] resize-none"
             />
           </div>
           <Submit asChild>

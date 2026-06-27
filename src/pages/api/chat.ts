@@ -1,12 +1,31 @@
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
-import { SystemMessage, HumanMessage, AIMessage, type BaseMessage } from '@langchain/core/messages';
+import { z } from 'zod';
 
 export const prerender = false;
 
+const chatRequestSchema = z.object({
+  messages: z.array(
+    z.object({
+      role: z.enum(['user', 'assistant', 'model', 'system']),
+      content: z.string(),
+    })
+  ).min(1),
+});
+
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const { messages } = await request.json();
+    const body = await request.json();
+    const parseResult = chatRequestSchema.safeParse(body);
+    
+    if (!parseResult.success) {
+      return new Response(JSON.stringify({ error: 'Invalid request format', details: parseResult.error.errors }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    const { messages } = parseResult.data;
     const lastUserMessage = messages[messages.length - 1]?.content || '';
 
     // 1. Context Injection: Query Astro Starlight's content collection
@@ -25,14 +44,6 @@ ${contextString}
 
 Provide high-fidelity responses. When the user asks about diagrams, walk them through the flows step-by-step.`;
 
-    // 3. Backend Orchestration: Leverage @langchain/core to construct payloads
-    const langchainMessages: BaseMessage[] = [
-      new SystemMessage(systemInstruction),
-      ...messages.map((m: any) => {
-        if (m.role === 'user') return new HumanMessage(m.content);
-        return new AIMessage(m.content);
-      })
-    ];
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.GLM_API_KEY;
 

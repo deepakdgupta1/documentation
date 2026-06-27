@@ -18,12 +18,23 @@ paths:
             schema:
               type: object
               required:
-                - message
+                - messages
               properties:
-                message:
-                  type: string
-                  description: The query from the user.
-                  example: "How do I configure the React Flow diagram island?"
+                messages:
+                  type: array
+                  description: The full conversation history up to the current turn.
+                  items:
+                    type: object
+                    required:
+                      - role
+                      - content
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, assistant]
+                      content:
+                        type: string
+                        description: The text content of the message.
                 threadId:
                   type: string
                   description: Optional thread identifier for conversation state tracking.
