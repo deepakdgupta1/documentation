@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { z, type ZodIssue } from 'zod';
 
@@ -197,6 +198,46 @@ export function buildRelevantContext(docs: DocEntry[], query: string): string {
   }
 
   return chunks.length > 0 ? chunks.join('\n\n') : buildManifest(docs);
+}
+
+export function getGlmCredentials(): { apiKey: string; baseUrl: string } {
+  let apiKey = process.env.GLM_API_KEY || '';
+  let baseUrl = process.env.GLM_BASE_URL || 'https://api.z.ai/api/coding/paas/v4';
+
+  try {
+    const keychainKey = execSync('security find-generic-password -s "GLM_API_KEY" -w', {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (keychainKey) {
+      apiKey = keychainKey;
+    }
+  } catch {
+    // Fallback to env var
+  }
+
+  try {
+    const keychainUrl = execSync('security find-generic-password -s "GLM_BASE_URL" -w', {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (keychainUrl) {
+      baseUrl = keychainUrl;
+    }
+  } catch {
+    // Fallback to env var
+  }
+
+  return { apiKey, baseUrl };
+}
+
+export function toGlmMessages(messages: NormalizedChatMessage[]) {
+  return messages
+    .filter((message) => message.role !== 'system')
+    .map((message) => ({
+      role: message.role === 'model' ? 'assistant' : message.role,
+      content: message.content,
+    }));
 }
 
 export function toGeminiContents(messages: NormalizedChatMessage[]) {

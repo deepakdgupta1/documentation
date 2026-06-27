@@ -47,10 +47,19 @@
   stroke: #3b82f6 !important;
 }
 
-.react-flow__edges {
+.react-flow .react-flow__edges {
   display: block !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
   opacity: 1 !important;
   visibility: visible !important;
+}
+
+.react-flow .react-flow__edges svg {
+  width: 100% !important;
+  height: 100% !important;
+  overflow: visible !important;
 }
 
 .react-flow__edge-text {

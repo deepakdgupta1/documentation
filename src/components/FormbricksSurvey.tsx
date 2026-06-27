@@ -1,13 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { Form, Nps, Textarea, Submit } from '@formbricks/react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Sparkles, X } from 'lucide-react';
 
 const STORAGE_KEY = 'arch_survey_completed';
+const NPS_OPTIONS = Array.from({ length: 11 }, (_, index) => index);
 
 export default function FormbricksSurvey() {
+  const [mounted, setMounted] = useState(false);
   const [showSurvey, setShowSurvey] = useState(false);
+  const [clarityScore, setClarityScore] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
+    setMounted(true);
+
     if (localStorage.getItem(STORAGE_KEY)) return;
 
     let timer: ReturnType<typeof setTimeout>;
@@ -20,6 +27,8 @@ export default function FormbricksSurvey() {
             setShowSurvey(true);
           }
         }, 120 * 1000);
+      } else {
+        setShowSurvey(false);
       }
     };
 
@@ -32,7 +41,7 @@ export default function FormbricksSurvey() {
     };
   }, []);
 
-  if (!showSurvey) return null;
+  if (!mounted || !showSurvey) return null;
 
   const handleDismiss = () => {
     localStorage.setItem(STORAGE_KEY, 'true');
@@ -40,23 +49,40 @@ export default function FormbricksSurvey() {
   };
 
   // TODO: Integrate with a real backend (Formbricks API or /api/feedback route).
-  // Currently this only logs to console — submitted data is not persisted.
-  const handleSubmit = (data: Record<string, unknown>) => {
+  // Currently this only logs to console; submitted data is not persisted.
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (clarityScore === null) {
+      setError('Choose a clarity score before submitting.');
+      return;
+    }
+
+    const data = {
+      clarity_score: clarityScore,
+      suggestions: suggestions.trim(),
+    };
+
     console.log('[Demo Mode] Survey submitted (not sent to backend):', data);
     localStorage.setItem(STORAGE_KEY, 'true');
     setShowSurvey(false);
   };
 
-  return (
-    <div className="fixed bottom-24 right-6 z-50 w-[350px] bg-slate-950/95 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-2xl animate-in slide-in-from-bottom-5">
+  return createPortal(
+    <aside
+      className="pointer-events-auto fixed bottom-24 left-4 right-4 z-[1100] w-auto rounded-xl border border-slate-800 bg-slate-950/95 p-5 shadow-2xl backdrop-blur-xl sm:left-auto sm:right-6 sm:w-[350px]"
+      aria-label="Architecture feedback survey"
+    >
       <div className="flex justify-between items-start mb-3">
         <h4 className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
           <Sparkles className="size-3.5 text-amber-400" />
           Quick Architecture Feedback <span className="text-[9px] text-slate-500 ml-1">[Demo]</span>
         </h4>
         <button
+          type="button"
           onClick={handleDismiss}
           className="text-slate-500 hover:text-slate-300 p-1 hover:bg-slate-900 rounded-lg cursor-pointer"
+          aria-label="Dismiss feedback survey"
         >
           <X className="size-3.5" />
         </button>
@@ -65,34 +91,74 @@ export default function FormbricksSurvey() {
         We noticed you've been reviewing the System Architecture. How clear is the layout?
       </p>
 
-      {/* Formbricks React Primitives Form */}
-      <Form onSubmit={handleSubmit} formId="arch-feedback">
+      <form onSubmit={handleSubmit}>
         <div className="space-y-3">
           <div>
-            <Nps
-              name="clarity_score"
-              label="Rate clarity from 0 (confusing) to 10 (very clear):"
-              labelClassName="text-slate-400 text-[10px] mb-1.5 block"
-              optionsClassName="flex justify-between gap-1"
-              optionClassName="size-7 rounded-md bg-slate-900 hover:bg-blue-600/30 border border-slate-800 text-[11px] flex items-center justify-center cursor-pointer text-slate-300 hover:text-white transition-all font-semibold"
-            />
+            <p id="clarity-score-label" className="text-slate-400 text-[10px] mb-1.5 block">
+              Rate clarity from 0 (confusing) to 10 (very clear):
+            </p>
+            <div
+              role="radiogroup"
+              aria-labelledby="clarity-score-label"
+              className="grid grid-cols-11 gap-1"
+            >
+              {NPS_OPTIONS.map((score) => {
+                const selected = clarityScore === score;
+
+                return (
+                  <button
+                    key={score}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => {
+                      setClarityScore(score);
+                      setError('');
+                    }}
+                    className={[
+                      'flex aspect-square min-w-0 items-center justify-center rounded-md border text-[11px] font-semibold transition-all cursor-pointer',
+                      selected
+                        ? 'border-blue-400 bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                        : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-blue-500/60 hover:bg-blue-600/25 hover:text-white',
+                    ].join(' ')}
+                  >
+                    {score}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-1 flex justify-between text-[9px] text-slate-500">
+              <span>confusing</span>
+              <span>very clear</span>
+            </div>
           </div>
           <div>
-            <Textarea
+            <label htmlFor="feedback-suggestions" className="text-slate-400 text-[10px] mb-1 block">
+              Any suggestions for improvements?
+            </label>
+            <textarea
+              id="feedback-suggestions"
               name="suggestions"
-              label="Any suggestions for improvements?"
+              value={suggestions}
+              onChange={(event) => setSuggestions(event.target.value)}
               placeholder="What details are missing?"
-              labelClassName="text-slate-400 text-[10px] mb-1 block"
-              inputClassName="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 min-h-[50px] max-h-[100px] resize-none"
+              className="w-full min-h-[56px] max-h-[110px] resize-none rounded-lg border border-slate-800 bg-slate-900 p-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60"
             />
           </div>
-          <Submit asChild>
-            <button className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition-colors duration-150 cursor-pointer">
-              Submit Feedback
-            </button>
-          </Submit>
+          {error && (
+            <p className="text-[10px] font-medium text-amber-300" role="alert">
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition-colors duration-150 cursor-pointer"
+          >
+            Submit Feedback
+          </button>
         </div>
-      </Form>
-    </div>
+      </form>
+    </aside>,
+    document.body,
   );
 }

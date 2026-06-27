@@ -9,10 +9,11 @@ import {
   createTextStreamIds,
   formatUiMessageSse,
   getClientIp,
+  getGlmCredentials,
   getSystemMessages,
   parseChatRequestBody,
   readJsonBody,
-  toGeminiContents,
+  toGlmMessages,
   type DocEntry,
 } from '../../lib/chat';
 
@@ -69,10 +70,20 @@ function enqueueSse(
 function streamTextResponse(text: string, delayMs = 35): Response {
   const encoder = new TextEncoder();
   const { messageId, textId } = createTextStreamIds();
+  const reasoningId = `rsn_${randomUUID()}`;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       enqueueSse(controller, encoder, { type: 'start', messageId });
+      
+      // Simulated reasoning stream
+      enqueueSse(controller, encoder, { type: 'reasoning-start', id: reasoningId });
+      enqueueSse(controller, encoder, { type: 'reasoning-delta', id: reasoningId, delta: 'Analyzing ingested architecture documents & context...' });
+      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, 250));
+      enqueueSse(controller, encoder, { type: 'reasoning-delta', id: reasoningId, delta: '\nSynthesizing optimal response structure.' });
+      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, 250));
+      enqueueSse(controller, encoder, { type: 'reasoning-end', id: reasoningId });
+
       enqueueSse(controller, encoder, { type: 'text-start', id: textId });
 
       const chunks = text.match(/\S+\s*/g) ?? [text];
@@ -93,18 +104,20 @@ function streamTextResponse(text: string, delayMs = 35): Response {
   return new Response(stream, { headers: UI_MESSAGE_STREAM_HEADERS });
 }
 
-function streamGeminiResponse(responseBody: ReadableStream<Uint8Array>): Response {
+function streamGlmResponse(responseBody: ReadableStream<Uint8Array>): Response {
   const reader = responseBody.getReader();
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const { messageId, textId } = createTextStreamIds();
+  const reasoningId = `rsn_${randomUUID()}`;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       enqueueSse(controller, encoder, { type: 'start', messageId });
-      enqueueSse(controller, encoder, { type: 'text-start', id: textId });
 
       let buffer = '';
+      let isReasoningActive = false;
+      let isTextActive = false;
 
       const processLine = (line: string) => {
         const cleanLine = line.trim();
@@ -115,13 +128,32 @@ function streamGeminiResponse(responseBody: ReadableStream<Uint8Array>): Respons
 
         try {
           const parsed = JSON.parse(dataStr);
-          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (typeof text === 'string' && text.length > 0) {
-            enqueueSse(controller, encoder, { type: 'text-delta', id: textId, delta: text });
+          const delta = parsed.choices?.[0]?.delta;
+          const reasoningContent = delta?.reasoning_content;
+          const textContent = delta?.content;
+
+          if (typeof reasoningContent === 'string' && reasoningContent.length > 0) {
+            if (!isReasoningActive) {
+              enqueueSse(controller, encoder, { type: 'reasoning-start', id: reasoningId });
+              isReasoningActive = true;
+            }
+            enqueueSse(controller, encoder, { type: 'reasoning-delta', id: reasoningId, delta: reasoningContent });
+          }
+
+          if (typeof textContent === 'string' && textContent.length > 0) {
+            if (isReasoningActive) {
+              enqueueSse(controller, encoder, { type: 'reasoning-end', id: reasoningId });
+              isReasoningActive = false;
+            }
+            if (!isTextActive) {
+              enqueueSse(controller, encoder, { type: 'text-start', id: textId });
+              isTextActive = true;
+            }
+            enqueueSse(controller, encoder, { type: 'text-delta', id: textId, delta: textContent });
           }
         } catch (parseErr: unknown) {
           const message = parseErr instanceof Error ? parseErr.message : String(parseErr);
-          console.warn(`[chat] Gemini SSE parse error: ${message}`);
+          console.warn(`[chat] GLM SSE parse error: ${message}`);
         }
       };
 
@@ -144,13 +176,19 @@ function streamGeminiResponse(responseBody: ReadableStream<Uint8Array>): Respons
           processLine(buffer);
         }
 
-        enqueueSse(controller, encoder, { type: 'text-end', id: textId });
+        if (isReasoningActive) {
+          enqueueSse(controller, encoder, { type: 'reasoning-end', id: reasoningId });
+        }
+        if (isTextActive) {
+          enqueueSse(controller, encoder, { type: 'text-start', id: textId });
+          enqueueSse(controller, encoder, { type: 'text-end', id: textId });
+        }
         enqueueSse(controller, encoder, { type: 'finish', finishReason: 'stop' });
         enqueueSse(controller, encoder, '[DONE]');
         controller.close();
       } catch (streamErr: unknown) {
         const message = streamErr instanceof Error ? streamErr.message : String(streamErr);
-        console.error('[chat] Gemini stream error:', message);
+        console.error('[chat] GLM stream error:', message);
         enqueueSse(controller, encoder, { type: 'error', errorText: 'The upstream stream ended unexpectedly.' });
         controller.close();
       } finally {
@@ -211,41 +249,44 @@ ${contextString}
 
 Provide high-fidelity responses. When the user asks about diagrams, walk them through the flows step-by-step.`;
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GLM_API_KEY;
+    const { apiKey, baseUrl } = getGlmCredentials();
 
     if (!apiKey) {
-      const simulatedText = `[Simulated GLM-5.2 Response (No GEMINI_API_KEY set)]
+      const simulatedText = `[Simulated GLM-5.2 Response (No GLM_API_KEY found)]
 
 I have loaded the documentation containing ${docs.length} active files. Here is what I found regarding your query:
 
 1. **Context Ingested**: Retrieved the most relevant docs for the current question.
 2. **Query Received**: "${lastUserMessage}"
 
-To connect me to a live Gemini model, configure the \`GEMINI_API_KEY\` or \`GLM_API_KEY\` environment variable.`;
+To connect me to live GLM model, configure GLM credentials in MacOS Keychain or set \`GLM_API_KEY\` environment variable.`;
 
       return streamTextResponse(simulatedText);
     }
 
-    const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          contents: toGeminiContents(messages),
-          systemInstruction: {
-            parts: [{ text: systemInstruction }],
-          },
-        }),
-      }
-    );
+    const glmMessages = [
+      { role: 'system', content: systemInstruction },
+      ...toGlmMessages(messages),
+    ];
+
+    const targetUrl = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'glm-5.2',
+        messages: glmMessages,
+        stream: true,
+      }),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[chat] Gemini API error (${response.status}):`, errorText.slice(0, 500));
+      console.error(`[chat] GLM API error (${response.status}):`, errorText.slice(0, 500));
       return jsonError('Upstream API error. Please try again later.', 502);
     }
 
@@ -253,7 +294,7 @@ To connect me to a live Gemini model, configure the \`GEMINI_API_KEY\` or \`GLM_
       return jsonError('Upstream API returned an empty response.', 502);
     }
 
-    return streamGeminiResponse(response.body);
+    return streamGlmResponse(response.body);
   } catch (err: unknown) {
     if (err instanceof ChatValidationError) {
       return jsonError('Invalid request format', 400, undefined, err.issues);
