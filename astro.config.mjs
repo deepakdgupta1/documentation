@@ -6,6 +6,21 @@ import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi';
 import starlightLlmsTxt from 'starlight-llms-txt';
 import tailwindcss from '@tailwindcss/vite';
 import node from '@astrojs/node';
+import mermaid from 'astro-mermaid';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Resolve target repo root (set by CLI, defaults to engine's own root)
+const targetRoot = process.env.TARGET_REPO_ROOT || path.resolve('.');
+const docsDir = process.env.TARGET_DOCS_DIR || './src/content/docs';
+
+// OpenAPI detection: check project root first, then docs directory
+const openApiPath = [
+  path.join(targetRoot, 'openapi.yaml'),
+  path.join(targetRoot, 'openapi.json'),
+  path.join(docsDir, 'openapi.yaml'),
+  path.join(docsDir, 'openapi.json'),
+].find((p) => fs.existsSync(p));
 
 // https://astro.build/config
 export default defineConfig({
@@ -14,6 +29,7 @@ export default defineConfig({
     mode: 'standalone',
   }),
   integrations: [
+    mermaid({ autoTheme: true }),
     react(),
     starlight({
       title: 'SOTA Docs-as-Code',
@@ -41,16 +57,16 @@ export default defineConfig({
             },
           ],
         },
-        ...openAPISidebarGroups,
+        ...(openApiPath ? openAPISidebarGroups : []),
       ],
       plugins: [
-        starlightOpenAPI([
-          {
-            base: 'api',
-            label: 'API Reference',
-            schema: './openapi.yaml',
-          }
-        ]),
+        ...(openApiPath
+          ? [starlightOpenAPI([{
+              base: 'api',
+              label: 'API Reference',
+              schema: openApiPath,
+            }])]
+          : []),
         starlightLlmsTxt({
           rawContent: true
         }),
